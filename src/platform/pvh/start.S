@@ -31,11 +31,6 @@
  * #define PVH_DS_SEL		(PVH_GDT_ENTRY_DS * 8)
  * #define PAE_BIT			(1 << 5)
  */
-	.extern PVH_GDT_ENTRY_CS
-	.extern PVH_GDT_ENTRY_DS
-	.extern PVH_CS_SEL
-	.extern PVH_DS_SEL
-	.extern PAE_BIT
 	.global _start
 _start:
 	/* How does linux handle GDT address?
@@ -45,15 +40,20 @@ _start:
 	lgdt gdt64 /* Use _pa(gdt64) here? */
 
 	/* Set up segment registers, which we won't use in favor of paging. */
+	.extern PVH_DS_SEL
 	mov PVH_DS_SEL, eax
 	mov eax, ds
 	mov eax, es
 	mov eax, ss
 
 	/* Set up the stack. */
+	.extern _rust_start
 	mov _STACK_TOP, esp
+	push ebx
+	call _rust_start
 
 	/* Set up the page tables for long mode. */
+	.extern PAE_BIT
 	mov cr4, eax
 	or PAE_BIT, eax
 	mov eax, cr4 /* Enable PAE by setting 5th bit in cr4. */
