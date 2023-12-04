@@ -40,7 +40,7 @@ SECTIONS
 	.bss :
 	{
 		_STACK_BOTTOM = .;
-		 += 4096; :w
+		. += 4096;
 		_STACK_TOP = .;
 		*(.bss .bss.*)
 		. = ALIGN(4096);
