@@ -29,7 +29,15 @@ macro_rules! entry_point {
         elfnote!(18, "quad", "_start"); // XEN_ELFNOTE_PHYS32_ENTRY.
 
         #[no_mangle] // Review: no_mangle vs export_name
-        pub extern "C" fn _rust_start() -> ! {
+        pub extern "C" fn _rust_start(start_info_ptr: *const platform::pvh::HvmStartInfo) -> ! {
+            if start_info_ptr.is_null() {
+                panic!("HVM start info is null.");
+            }
+            //SAFETY: Already checked that start info is not null.
+            let start_info: &platform::pvh::HvmStartInfo = unsafe { &*start_info_ptr };
+            if start_info.magic != platform::pvh::PVH_BOOT_MAGIC {
+                panic!("HVM start info magic is not PVH_BOOT_MAGIC.");
+            }
             // Validate entry point function signature.
             let f: fn() -> ! = $entry;
             f();
