@@ -7,17 +7,18 @@ LINKER=ld
 %.o: %.s
 	$(ASM-GCC) -c $^ -o $@
 
-start.o: src/platform/pvh/start.S
+src/platform/pvh/start.o: src/platform/pvh/start.S
 
 $(LIBUNIFIRE): .FORCE
 	cargo build
 
-build: src/platform/pvh/pvhboot.ld $(LIBUNIFIRE) start.o .FORCE
+build: src/platform/pvh/pvhboot.ld $(LIBUNIFIRE) src/platform/pvh/start.o .FORCE
 	$(LINKER) -Tsrc/platform/pvh/pvhboot.ld -o unifire.ELF \
-		start.o $(LIBUNIFIRE)
+		src/platform/pvh/start.o $(LIBUNIFIRE)
 
 clean:
 	cargo clean
 	rm -f *.o *.ELF
+	rm -f src/platform/pvh/*.o
 
 .PHONY: .FORCE
