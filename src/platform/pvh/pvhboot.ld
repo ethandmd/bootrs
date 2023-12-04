@@ -7,6 +7,7 @@ PHDRS
 	rodata PT_LOAD;
 	data PT_LOAD;
 	bss PT_LOAD;
+	stack PT_LOAD;
 	note PT_NOTE;
 }
 
@@ -39,12 +40,17 @@ SECTIONS
 	
 	.bss :
 	{
-		_STACK_BOTTOM = .;
-		. += 4096;
-		_STACK_TOP = .;
 		*(.bss .bss.*)
 		. = ALIGN(4096);
 	} :bss
+
+	.stack :
+	{
+		_STACK_BOTTOM = .;
+		. = . + 4096;
+		_STACK_TOP = .;
+		. = ALIGN(4096);
+	} :stack
 
 	.note :
 	{

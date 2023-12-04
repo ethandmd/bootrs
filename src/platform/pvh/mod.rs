@@ -1,14 +1,5 @@
 #![allow(dead_code)]
 
-//_pa(x) ((x) - _KERNEL_BASE) /* from Linux */
-pub static PVH_GDT_ENTRY_CS: u32 = 1;
-pub static PVH_GDT_ENTRY_DS: u32 = 2;
-pub static PVH_CS_SEL: u32 = PVH_GDT_ENTRY_CS * 8;
-#[no_mangle]
-pub static PVH_DS_SEL: u32 = PVH_GDT_ENTRY_DS * 8;
-#[no_mangle]
-pub static PAE_BIT: u32 = 1 << 5;
-
 // Stolen from: linux/include/xen/interface/elfnote.h
 // The notes should live in a SHT_NOTE segment and have "Xen" in the
 // name field.

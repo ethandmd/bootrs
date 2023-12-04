@@ -32,28 +32,16 @@ _start:
 	cld
 	lgdt gdt64 /* Use _pa(gdt64) here? */
 
-	/* Set up segment registers, which we won't use in favor of paging. */
-	/* Defined in src/platform/pvh/mod.rs: */
-	.extern PVH_GDT_ENTRY_CS
-	.extern PVH_GDT_ENTRY_DS
-	.extern PVH_CS_SEL
-	.extern PVH_DS_SEL
-	.extern PAE_BIT
-	movl $PVH_DS_SEL, %eax
-	movl %eax, %ds
-	movl %eax, %es
-	movl %eax, %ss
-	
 	/* Set up the stack. */
-	movl $_STACK_TOP, %esp
+	movl $0x132000, %esp
 	/* Put the start info struct pointer on the stack and call _rust_start. */
-	push %ebx
+	pushl %ebx
 	.extern _rust_start
 	call _rust_start
 
 	/* Set up the page tables for long mode.
 	 * movl %cr4, %eax
-	 * or $PAE_BIT, %eax
+	 * or $0x5, %eax
 	 * movl %eax, cr4 /* Enable PAE by setting 5th bit in cr4.
 	 */
 
