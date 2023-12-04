@@ -157,7 +157,7 @@ pub const PVH_BOOT_MAGIC: u32 = 0x336ec578;
 
 /// Reference: https://github.com/xen-project/xen/blob/master/xen/include/public/arch-x86/hvm/start_info.h
 /// CH sets at address 0x6000.
-pub struct StartInfo {
+pub struct HvmStartInfo {
     pub magic: u32,          // == 0x336ec578
     pub version: u32,        // == version of this struct. PVH should be 1.
     pub flags: u32,          // SIF_xxx flags
