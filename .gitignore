@@ -2,3 +2,5 @@
 TODO:*
 Cargo.lock
 NOTES.txt
+*.o
+*.ELF

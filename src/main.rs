@@ -16,7 +16,7 @@ extern "C" fn eh_personality() {}
 macro_rules! entry_point {
     ($entry:path) => {
         // Include in order to get _start symbol for kernel entry.
-        global_asm!(include_str!("platform/pvh/start.S"));
+        //global_asm!(include_str!("platform/pvh/start.S"));
 
         #[panic_handler]
         fn panic(_info: &PanicInfo) -> ! {

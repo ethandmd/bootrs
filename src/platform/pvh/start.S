@@ -24,18 +24,6 @@
 	 */
 	.code32
 	.section .text.start
-/* 
- * #define PVH_GDT_ENTRY_CS	1
- * #define PVH_GDT_ENTRY_DS	2
- * #define PVH_CS_SEL		(PVH_GDT_ENTRY_CS * 8)
- * #define PVH_DS_SEL		(PVH_GDT_ENTRY_DS * 8)
- * #define PAE_BIT			(1 << 5)
- */
-	.extern PVH_GDT_ENTRY_CS
-	.extern PVH_GDT_ENTRY_DS
-	.extern PVH_CS_SEL
-	.extern PVH_DS_SEL
-	.extern PAE_BIT
 	.global _start
 _start:
 	/* How does linux handle GDT address?
@@ -45,18 +33,29 @@ _start:
 	lgdt gdt64 /* Use _pa(gdt64) here? */
 
 	/* Set up segment registers, which we won't use in favor of paging. */
-	mov PVH_DS_SEL, eax
-	mov eax, ds
-	mov eax, es
-	mov eax, ss
-
+	/* Defined in src/platform/pvh/mod.rs: */
+	.extern PVH_GDT_ENTRY_CS
+	.extern PVH_GDT_ENTRY_DS
+	.extern PVH_CS_SEL
+	.extern PVH_DS_SEL
+	.extern PAE_BIT
+	movl $PVH_DS_SEL, %eax
+	movl %eax, %ds
+	movl %eax, %es
+	movl %eax, %ss
+	
 	/* Set up the stack. */
-	mov _STACK_TOP, esp
+	movl $_STACK_TOP, %esp
+	/* Put the start info struct pointer on the stack and call _rust_start. */
+	push %ebx
+	.extern _rust_start
+	call _rust_start
 
-	/* Set up the page tables for long mode. */
-	mov cr4, eax
-	or PAE_BIT, eax
-	mov eax, cr4 /* Enable PAE by setting 5th bit in cr4. */
+	/* Set up the page tables for long mode.
+	 * movl %cr4, %eax
+	 * or $PAE_BIT, %eax
+	 * movl %eax, cr4 /* Enable PAE by setting 5th bit in cr4.
+	 */
 
 	.section .rodata
 /* 64-bit GDT  from Linux */
