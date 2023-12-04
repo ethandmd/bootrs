@@ -13,9 +13,14 @@ PHDRS
 ENTRY(_start)
 SECTIONS
 {
-	. = 0x100000; /* 1MB */
+	/* Low RAM start: 0x0 */
+	/* High RAM start: 0x10_0000 */
+	/* 64-bit RAM start: 0x1_0000_0000 */
+	. = 0x100000;
+	_KERNEL_BASE = .;
 	.text :
 	{
+		*(.text.start, .text.start.*)
 		*(.text .text.*)
 		. = ALIGN(4096);
 	} :text
@@ -34,9 +39,9 @@ SECTIONS
 	
 	.bss :
 	{
-		STACK_BOTTOM = .;
-		. += 4096; /* Create our own single page stack */
-		STACK_TOP = .;
+		_STACK_BOTTOM = .;
+		 += 4096; :w
+		_STACK_TOP = .;
 		*(.bss .bss.*)
 		. = ALIGN(4096);
 	} :bss
