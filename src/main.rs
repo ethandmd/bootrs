@@ -15,8 +15,8 @@ extern "C" fn eh_personality() {}
 #[macro_export]
 macro_rules! entry_point {
     ($entry:path) => {
-        // Include in order to get _start symbol for kernel entry.
-        global_asm!(include_str!("platform/pvh/start.S"));
+        // Include in order to link with pvh/start.S asm.
+        global_asm!(include_str!("platform/pvh/start.S"), options(att_syntax));
 
         #[panic_handler]
         fn panic(_info: &PanicInfo) -> ! {
@@ -29,15 +29,7 @@ macro_rules! entry_point {
         elfnote!(18, "quad", "_start"); // XEN_ELFNOTE_PHYS32_ENTRY.
 
         #[no_mangle] // Review: no_mangle vs export_name
-        pub extern "C" fn _rust_start(start_info_ptr: *const platform::pvh::HvmStartInfo) -> ! {
-            if start_info_ptr.is_null() {
-                panic!("HVM start info is null.");
-            }
-            //SAFETY: Already checked that start info is not null.
-            let start_info: &platform::pvh::HvmStartInfo = unsafe { &*start_info_ptr };
-            if start_info.magic != platform::pvh::PVH_BOOT_MAGIC {
-                panic!("HVM start info magic is not PVH_BOOT_MAGIC.");
-            }
+        pub extern "C" fn _rust_start() -> ! {
             // Validate entry point function signature.
             let f: fn() -> ! = $entry;
             f();

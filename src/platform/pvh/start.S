@@ -24,54 +24,105 @@
 	 */
 	.code32
 	.section .text.start
-/* 
- * #define PVH_GDT_ENTRY_CS	1
- * #define PVH_GDT_ENTRY_DS	2
- * #define PVH_CS_SEL		(PVH_GDT_ENTRY_CS * 8)
- * #define PVH_DS_SEL		(PVH_GDT_ENTRY_DS * 8)
- * #define PAE_BIT			(1 << 5)
- */
 	.global _start
 _start:
-	/* How does linux handle GDT address?
-	 * https://github.com/torvalds/linux/blob/0adb32858b0bddf4ada5f364a84ed60b196dbcda/arch/x86/boot/compressed/head_64.S#L540
+	/* 
+	 * Reference: https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S
+	 * Enable Long mode:
+	 * 1. Setup page tables
+	 * 2. Enable PAE
+	 * 3. Set Long mode enable bit (0x8) in EFER MSR (extended feature enable register @ 0xc0000080)
+	 * 4. Enable paging
+	 * 5. Load GDT
 	 */
+
+	/* 1. Setup page tables. */
+	/* Let's use 2MiB hugepages for early boot identity paging of 1st 1GiB in case of small VMs. */
+
+	/* pml4_table[0] = pdp_table */
+	mov $pdp_table, %eax
+	or $0x3, %eax /* Set present and writable bits. */
+	mov %eax, [pml4_table]
+
+	/* pdp_table[0] = pd_table */
+	mov $pd_table, %eax
+	or $0x3, %eax /* Set present and writable bits. */
+	mov %eax, [pdp_table]
+	
+	/* Map all 512 PTEs in pd_table with 2MiB hugepages. */
+	/* The reach of the pd_table is 512 * 2MiB = 1GiB. */
+	mov $0x0, %ecx
+	mov $pd_table, %edi
+	.map_pd_table:
+		mov $0x200000, %eax /* 2MiB */
+		mul %ecx
+		or $0x83, %eax /* Set present, writable and 2MiB hugepage bits. */
+		mov %eax, (%edi) /* Set PTE address in pd_table at offset. */
+		add $0x8, %edi
+		inc %ecx
+		cmp $0x200, %ecx
+		jne .map_pd_table
+
+	/* Set PML4 base address in %cr3 */
+	mov $pml4_table, %eax
+	mov %eax, %cr3
+
+	/* 2. Enable PAE. */
+	mov %cr4, %eax
+	orl $0x8, %eax
+	mov %eax, %cr4 /* Enable PAE by setting 5th bit in cr4. */
+
+	/* 3. Set Long mode enable bit (0x8) in EFER MSR (extended feature enable register @ 0xc0000080) */
+	mov $0xc0000080, %ecx
+	rdmsr
+	btsl $0x8, %eax
+	wrmsr
+
+	/* Set paging bit in cr0. */
+	mov %cr0, %eax /* From GDB I can tell that PE bit is set, as expected. */
+	mov $0x80000000, %ecx /* Set paging bit (1 << 31). */
+	or %ecx, %eax /* %eax should now be (1 << 31) | (1 << 0) = 0x80000001. */
+	mov %eax, %cr0 /* TODO: Receiving fault here. */
+	
+	/* 5. Load GDT Segments. */
 	cld
-	lgdt gdt64 /* Use _pa(gdt64) here? */
+	lgdt [gdt64] /* Use _pa(gdt64) here? */
 
-	/* Set up segment registers, which we won't use in favor of paging. */
-	.extern PVH_DS_SEL
-	mov PVH_DS_SEL, eax
-	mov eax, ds
-	mov eax, es
-	mov eax, ss
-
+	/* Zero out data segment registers. */
+	xor %eax, %eax
+	mov %ax, %ds
+	mov %ax, %es
+	mov %ax, %fs
+	mov %ax, %gs
+	mov %ax, %ss
+	
 	/* Set up the stack. */
+	mov $boot_stack_top, %eax
+	mov %eax, %esp
+	mov %esp, %ebp
+	push %ebx /* Boot start info structure. */
+	.code64
+1:  
 	.extern _rust_start
-	mov _STACK_TOP, esp
-	push ebx
-	call _rust_start
-
-	/* Set up the page tables for long mode. */
-	.extern PAE_BIT
-	mov cr4, eax
-	or PAE_BIT, eax
-	mov eax, cr4 /* Enable PAE by setting 5th bit in cr4. */
+	jmp _rust_start
 
 	.section .rodata
-/* 64-bit GDT  from Linux */
+	/* Linux GDT64: https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S */
 gdt64:
-    .word    gdt_end - gdt
-    .long    0
-    .word    0
-    .quad	 0
+	.word gdt_end - gdt
 gdt:
-    .word    gdt_end - gdt
-    .long    gdt
-    .word    0
-    .quad    0x00cf9a000000ffff    /* __KERNEL32_CS */
-    .quad    0x00af9a000000ffff    /* __KERNEL_CS */
-    .quad    0x00cf92000000ffff    /* __KERNEL_DS */
-    .quad    0x0080890000000000    /* TS descriptor */
-    .quad    0x0000000000000000    /* TS continued */
+	.quad 0x209c00000000001 << 42 /* 64-bit code segment */
 gdt_end:
+	
+	/* https://web.mit.edu/gnu/doc/html/as_7.html */
+	.section .bss
+.align 4096
+pml4_table:
+	.fill 4096, 1, 0
+pdp_table:
+	.fill 4096, 1, 0
+pd_table:
+	.fill 4096, 1, 0
+boot_stack_bottom:
+	.fill 4096, 1, 0
+boot_stack_top:
