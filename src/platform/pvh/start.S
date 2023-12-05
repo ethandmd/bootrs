@@ -69,7 +69,7 @@ _start:
 
 	/* 2. Enable PAE. */
 	mov %cr4, %eax
-	orl $0x8, %eax
+	orl $0x20, %eax
 	mov %eax, %cr4 /* Enable PAE by setting 5th bit in cr4. */
 
 	/* 3. Set Long mode enable bit (0x8) in EFER MSR (extended feature enable register @ 0xc0000080) */
@@ -82,7 +82,7 @@ _start:
 	mov %cr0, %eax /* From GDB I can tell that PE bit is set, as expected. */
 	mov $0x80000000, %ecx /* Set paging bit (1 << 31). */
 	or %ecx, %eax /* %eax should now be (1 << 31) | (1 << 0) = 0x80000001. */
-	mov %eax, %cr0 /* TODO: Receiving fault here. */
+	mov %eax, %cr0
 	
 	/* 5. Load GDT Segments. */
 	cld
