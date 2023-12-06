@@ -53,7 +53,7 @@ _start:
 	/* The reach of the pd_table is 512 * 2MiB = 1GiB. */
 	mov $0x0, %ecx
 	mov $pd_table, %edi
-	.map_pd_table:
+	map_pd_table:
 		mov $0x200000, %eax /* 2MiB */
 		mul %ecx
 		or $0x83, %eax /* Set present, writable and 2MiB hugepage bits. */
@@ -61,7 +61,7 @@ _start:
 		add $0x8, %edi
 		inc %ecx
 		cmp $0x200, %ecx
-		jne .map_pd_table
+		jne map_pd_table
 
 	/* Set PML4 base address in %cr3 */
 	mov $pml4_table, %eax
@@ -87,23 +87,24 @@ _start:
 	/* 5. Load GDT Segments. */
 	cld
 	lgdt [gdt64] /* Use _pa(gdt64) here? */
-
-	/* Zero out data segment registers. */
-	xor %eax, %eax
-	mov %ax, %ds
-	mov %ax, %es
-	mov %ax, %fs
-	mov %ax, %gs
-	mov %ax, %ss
 	
 	/* Set up the stack. */
 	mov $boot_stack_top, %eax
 	mov %eax, %esp
 	mov %esp, %ebp
-	push %ebx /* Boot start info structure. */
+
+	/* Zero out data segment registers. */
+	xor %eax, %eax
+	mov %eax, %ds
+	mov %eax, %es
+	mov %eax, %fs
+	mov %eax, %gs
+	/* mov %eax, %ss TODO: Fault here. */
+	jmp 1f /* Jump to 64-bit code. */
 	.code64
 1:  
 	.extern _rust_start
+	mov %rbx, %rdi /* Pass boot info to Rust. */
 	jmp _rust_start
 
 	.section .rodata

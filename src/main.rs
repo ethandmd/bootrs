@@ -5,6 +5,7 @@
 
 pub mod platform;
 
+//use core::arch::asm;
 use core::arch::global_asm;
 use core::panic::PanicInfo;
 
@@ -29,7 +30,7 @@ macro_rules! entry_point {
         elfnote!(18, "quad", "_start"); // XEN_ELFNOTE_PHYS32_ENTRY.
 
         #[no_mangle] // Review: no_mangle vs export_name
-        pub extern "C" fn _rust_start() -> ! {
+        pub extern "C" fn _rust_start(_start_info_ptr: u64) -> ! {
             // Validate entry point function signature.
             let f: fn() -> ! = $entry;
             f();
