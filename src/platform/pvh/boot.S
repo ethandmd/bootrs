@@ -62,7 +62,7 @@ _start:
 		inc %ecx
 		cmp $0x200, %ecx
 		jne map_pd_table
-
+	
 	/* Set PML4 base address in %cr3 */
 	mov $pml4_table, %eax
 	mov %eax, %cr3
@@ -104,7 +104,7 @@ _start:
 	.code64
 1:  
 	.extern _rust_start
-	mov %rbx, %rdi /* Pass boot info to Rust. */
+	mov %rbx, %rdi
 	jmp _rust_start
 
 	.section .rodata

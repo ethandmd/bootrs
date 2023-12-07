@@ -17,7 +17,7 @@ extern "C" fn eh_personality() {}
 macro_rules! entry_point {
     ($entry:path) => {
         // Include in order to link with pvh/start.S asm.
-        global_asm!(include_str!("platform/pvh/start.S"), options(att_syntax));
+        global_asm!(include_str!("platform/pvh/boot.S"), options(att_syntax));
 
         #[panic_handler]
         fn panic(_info: &PanicInfo) -> ! {
@@ -30,7 +30,7 @@ macro_rules! entry_point {
         elfnote!(18, "quad", "_start"); // XEN_ELFNOTE_PHYS32_ENTRY.
 
         #[no_mangle] // Review: no_mangle vs export_name
-        pub extern "C" fn _rust_start(_start_info_ptr: u64) -> ! {
+        pub extern "C" fn __impl_main() -> ! {
             // Validate entry point function signature.
             let f: fn() -> ! = $entry;
             f();
