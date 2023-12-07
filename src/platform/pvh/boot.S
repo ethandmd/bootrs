@@ -13,7 +13,7 @@
 	 *           and a limit of `0xFFFFFFFF`. The selector value is unspecified.
 	 *  - `ds`, `es`: must be a 32-bit read/write data segment with a base of
 	 *                `0` and a limit of `0xFFFFFFFF`. The selector values are all
-	 *                unspecified.Linux PVH Boot head.S:
+	 *                unspecified.
 	 *  - `tr`: must be a 32-bit TSS (active) with a base of '0' and a limit
 	 *          of '0x67'.
 	 *  - `eflags`: bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
@@ -51,7 +51,7 @@ _start:
 	
 	/* Map all 512 PTEs in pd_table with 2MiB hugepages. */
 	/* The reach of the pd_table is 512 * 2MiB = 1GiB. */
-	mov $0x0, %ecx
+	xor %ecx, %ecx
 	mov $pd_table, %edi
 	map_pd_table:
 		mov $0x200000, %eax /* 2MiB */
@@ -72,10 +72,10 @@ _start:
 	orl $0x20, %eax
 	mov %eax, %cr4 /* Enable PAE by setting 5th bit in cr4. */
 
-	/* 3. Set Long mode enable bit (0x8) in EFER MSR (extended feature enable register @ 0xc0000080) */
+	/* 3. Set Long mode enable bit (1 << 8) in EFER MSR (extended feature enable register @ 0xc0000080) */
 	mov $0xc0000080, %ecx
 	rdmsr
-	btsl $0x8, %eax
+	or $0x100, %eax
 	wrmsr
 
 	/* Set paging bit in cr0. */
@@ -86,34 +86,54 @@ _start:
 	
 	/* 5. Load GDT Segments. */
 	cld
-	lgdt [gdt64] /* Use _pa(gdt64) here? */
-	
+	lgdt [gdt] 
+	/* 
+	 * Reload segment registers.
+	 * CS GDT entry is at offset 0x8.
+	 * DS GDT entry is at offset 0x10.
+	 */
+	mov $0x10, %eax
+	mov %eax, %ds
+	mov %eax, %es
+	mov %eax, %ss
+	jmp 1f /* Jump to 64-bit code. */
+	.code64
+1:  
 	/* Set up the stack. */
 	mov $boot_stack_top, %eax
 	mov %eax, %esp
 	mov %esp, %ebp
 
-	/* Zero out data segment registers. */
-	xor %eax, %eax
-	mov %eax, %ds
-	mov %eax, %es
-	mov %eax, %fs
-	mov %eax, %gs
-	/* mov %eax, %ss TODO: Fault here. */
-	jmp 1f /* Jump to 64-bit code. */
-	.code64
-1:  
+	/* Set up the stack canary.
+	 * mov $0xc0000101, %eax
+	 * mov $canary, %eax
+	 * xor %edx, %edx /* GS_BASE MSR reads from EDX:EAX...hence clear EDX.
+	 * wrmsr
+	 */
+
+	/* Jump to 64-bit rust entry point. */
 	.extern _rust_start
-	mov %rbx, %rdi
+	mov %rbx, %rdi /* Pass boot info structure to rust in %rdi. */
 	jmp _rust_start
 
 	.section .rodata
-	/* Linux GDT64: https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S */
-gdt64:
-	.word gdt_end - gdt
+	.balign 8
+	/* Linux GDT64: https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S
+	 * GDT segment layout from Linux and https://wiki.osdev.org/GDT_Tutorial
+	 */
 gdt:
-	.quad 0x209c00000000001 << 42 /* 64-bit code segment */
+	.word gdt_end - gdt_start
+	.long gdt_start
+	.word 0x0000
+gdt_start:
+	.quad 0x00000000000000 /* Null segment */
+	.quad 0xaf9a0000000000 /* 64-bit code segment */
+	.quad 0xcf92000000ffff /* 64-bit data segment */
 gdt_end:
+
+/* canary:
+ *	.fill 48, 1, 0
+ */
 	
 	/* https://web.mit.edu/gnu/doc/html/as_7.html */
 	.section .bss
@@ -125,5 +145,5 @@ pdp_table:
 pd_table:
 	.fill 4096, 1, 0
 boot_stack_bottom:
-	.fill 4096, 1, 0
+	.fill 0x4000, 1, 0 /* 4KiB early boot stack. */
 boot_stack_top:
