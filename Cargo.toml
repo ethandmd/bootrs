@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-path = "src/main.rs"
+path = "src/main.rs" # TODO: Remove demo "app" fn main, and move to lib.rs.
 crate-type = ["staticlib"]
 
 [profile.dev]
