@@ -2,10 +2,10 @@
 #![no_main]
 #![allow(internal_features)]
 #![feature(lang_items)]
-
+#![feature(pointer_is_aligned)]
+#![feature(strict_provenance)]
 pub mod platform;
 
-//use core::arch::asm;
 use core::arch::global_asm;
 use core::panic::PanicInfo;
 
