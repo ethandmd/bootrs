@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 pub mod setup;
 
+use core::ptr;
+
 pub const PVH_BOOT_MAGIC: u32 = 0x336ec578;
 
 #[repr(u32)]
@@ -32,7 +34,7 @@ pub struct HvmStartInfo {
 
 impl HvmStartInfo {
     pub fn new(start_info_ptr: *const HvmStartInfo) -> Self {
-        if start_info_ptr == core::ptr::null() {
+        if start_info_ptr == ptr::null() {
             panic!("Invalid PVH start info pointer");
         }
         let magic = unsafe { (*start_info_ptr).magic };
@@ -78,6 +80,41 @@ pub struct HvmMemMapTableEntry {
     pub size: u64,                   // size of memory range (bytes)
     pub mapping_type: HvmMemmapType, // type of memory range
     pub reserved: u32,               // must be zero
+}
+
+pub struct HvmMemMapTable {
+    pub entry: *const HvmMemMapTableEntry,
+    pub nr_entries: u32,
+}
+
+impl HvmMemMapTable {
+    pub fn new(memmap_paddr: *const HvmMemMapTableEntry, memmap_entries: u32) -> Self {
+        if memmap_paddr == ptr::null() {
+            panic!("Invalid PVH memory map address");
+        }
+        if memmap_entries == 0 {
+            panic!("Invalid PVH memory map entries");
+        }
+        Self {
+            entry: memmap_paddr,
+            nr_entries: memmap_entries,
+        }
+    }
+}
+
+impl Iterator for HvmMemMapTable {
+    type Item = HvmMemMapTableEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.nr_entries == 0 || self.entry == ptr::null() {
+            None
+        } else {
+            let entry = self.entry;
+            self.entry = unsafe { self.entry.add(1) };
+            self.nr_entries -= 1;
+            Some(unsafe { ptr::read(entry) })
+        }
+    }
 }
 
 #[macro_export]
