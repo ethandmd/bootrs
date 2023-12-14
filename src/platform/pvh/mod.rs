@@ -17,7 +17,6 @@ pub enum HvmMemmapType {
 /// Reference: https://github.com/xen-project/xen/blob/master/xen/include/public/arch-x86/hvm/start_info.h
 /// CH sets at address 0x6000.
 #[repr(C)]
-#[repr(align(8))]
 pub struct HvmStartInfo {
     pub magic: u32,          // == 0x336ec578
     pub version: u32,        // == version of this struct. PVH should be 1.
@@ -31,6 +30,39 @@ pub struct HvmStartInfo {
     pub _reserved: u32,      // must be zero.
 }
 
+impl HvmStartInfo {
+    pub fn new(start_info_ptr: *const HvmStartInfo) -> Self {
+        if start_info_ptr == core::ptr::null() {
+            panic!("Invalid PVH start info pointer");
+        }
+        let magic = unsafe { (*start_info_ptr).magic };
+        if magic != PVH_BOOT_MAGIC {
+            panic!("Invalid PVH boot magic");
+        }
+        let version = unsafe { (*start_info_ptr).version };
+        let flags = unsafe { (*start_info_ptr).flags };
+        let nr_modules = unsafe { (*start_info_ptr).nr_modules };
+        let modlist_paddr = unsafe { (*start_info_ptr).modlist_paddr };
+        let cmdline_paddr = unsafe { (*start_info_ptr).cmdline_paddr };
+        let rsdp_paddr = unsafe { (*start_info_ptr).rsdp_paddr };
+        let memmap_paddr = unsafe { (*start_info_ptr).memmap_paddr };
+        let memmap_entries = unsafe { (*start_info_ptr).memmap_entries };
+        let _reserved = unsafe { (*start_info_ptr)._reserved };
+        Self {
+            magic,
+            version,
+            flags,
+            nr_modules,
+            modlist_paddr,
+            cmdline_paddr,
+            rsdp_paddr,
+            memmap_paddr,
+            memmap_entries,
+            _reserved,
+        }
+    }
+}
+
 #[repr(C)]
 pub struct HvmModListEntry {
     pub paddr: u64,         // physical address of module
@@ -41,7 +73,6 @@ pub struct HvmModListEntry {
 
 /// Reference: https://uefi.org/specs/ACPI/6.5/15_System_Address_Map_Interfaces.html
 #[repr(C)]
-#[repr(align(8))]
 pub struct HvmMemMapTableEntry {
     pub addr: u64,                   // start of memory range (bytes)
     pub size: u64,                   // size of memory range (bytes)
