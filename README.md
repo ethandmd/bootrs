@@ -1,5 +1,40 @@
 # 'Unikernel' Project: PVH Boot Implementation
 
+## Usage
+Build the current repo (it includes demo code to drive the project):
+```
+$ cd unifire
+$ cargo build
+```
+
+Load the kernel on cloud hypervisor with GDB:
+```
+$ ./cloud-hypervisor \
+    -vv \
+    --kernel $1 \
+    --cpus boot=1 \
+    --memory size=1024M \
+    --console off \
+    --serial tty \
+    --api-socket=/tmp/ch-api-sock \
+    --gdb path=/tmp/ch-gdb-sock
+```
+
+Load GDB and point it at the VM:
+```
+$ gdb unifire/target/x86_64-unknown-none/debug/unifire -q
+(gdb) set output-radix 16
+(gdb) set print pretty on
+(gdb) set disassemble-next-line auto
+(gdb) set arch i386:x86-64
+(gdb) target remote /tmp/ch-gdb-sock 
+(gdb) set disassembly-flavor att
+```
+
+Begin stepping through instructions using "si" for single instr, or "s" for "step", etc...
+
+## Project Overview
+
 The long term goal of this project is to create a library OS crate that Rust application developers can link to and create unikernels.
 
 The first milestone in this project is a bootable kernel image -- in other words, a kernel binary that can be directly booted by the hypervisor
