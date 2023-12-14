@@ -33,9 +33,9 @@ _start:
 
 	call setup_page_tables
 	call enable_paging
-	cli
+	/* cli */
 	call setup_gdt
-	jmp long_mode_entry
+	jmp long_mode_entry /* And enter Rust, not coming back! */
 
 	/* 
 	 * Reference: https://github.com/torvalds/linux/blob/v4.16/arch/x86/boot/compressed/head_64.S
@@ -117,7 +117,7 @@ rust_entry:
 	/* Setup stack pointer. */
 	/* mov $boot_stack_top, %rsp */
 
-	mov %rbx, %rdi /* SYSTEM V ABI passes first two args in rdi/si. */
+	mov %rbx, %rdi /* SYSTEM V ABI passes first six args in regs. */
 	jmp _rust_start
 
 	.section .rodata

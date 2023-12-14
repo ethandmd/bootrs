@@ -1,8 +1,9 @@
 use super::*;
-//use x86_64::registers;
+use crate::arch::x86::interrupt::init_idt;
 
 #[no_mangle]
 pub extern "C" fn _rust_start(start_info_ptr: *const HvmStartInfo) {
+    init_idt();
     let start_info = HvmStartInfo::new(start_info_ptr);
     let memmap_paddr = start_info.memmap_paddr as *const HvmMemMapTableEntry;
     let memmap_entries = start_info.memmap_entries;

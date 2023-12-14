@@ -2,8 +2,8 @@
 #![no_main]
 #![allow(internal_features)]
 #![feature(lang_items)]
-#![feature(pointer_is_aligned)]
-#![feature(strict_provenance)]
+#![feature(abi_x86_interrupt)]
+pub mod arch;
 pub mod platform;
 
 use core::arch::global_asm;
