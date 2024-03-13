@@ -1,9 +1,9 @@
-# 'Unikernel' Project: PVH Boot Implementation
+# Project: PVH Boot Implementation
 
 ## Usage
 Build the current repo (it includes demo code to drive the project):
 ```
-$ cd unifire
+$ cd bootrs
 $ cargo build
 ```
 
@@ -22,7 +22,7 @@ $ ./cloud-hypervisor \
 
 Load GDB and point it at the VM:
 ```
-$ gdb unifire/target/x86_64-unknown-none/debug/unifire -q
+$ gdb bootrs/target/x86_64-unknown-none/debug/bootrs -q
 (gdb) set output-radix 16
 (gdb) set print pretty on
 (gdb) set disassemble-next-line auto
@@ -37,7 +37,7 @@ Begin stepping through instructions using "si" for single instr, or "s" for "ste
 
 The long term goal of this project is to create a library OS crate that Rust application developers can link to and create unikernels.
 
-The first milestone in this project is a bootable kernel image -- in other words, a kernel binary that can be directly booted by the hypervisor
+The first milestone in this project is a bootable kernel image -- in other words, a minimal binary that can be directly booted by the hypervisor
 without a bootloader or hypervisor firmware. Accomplishing this will be critical in achieving minimal boot times and leverages the unikernel 
 paradigm that the underlying platform is a known hypervisor/boot protocol.
 
@@ -47,7 +47,7 @@ After a brief survey of mainstream-ish options for booting the kernel image, I f
 - Those leveraging Firmware + BIOS / UEFI Boot (via a bootloader)
 - Direct Linux Boot
 - Others within the Xen ecosystem:
-    - HVM (essentially the same as Firmware + Bootloader)
+    - HVM
     - PV (paravirtualized)
     - *PVH* (something of a hybrid between paravirtualization + hardware virtualization extensions)
 
@@ -58,8 +58,7 @@ Linux Boot being more widely supported across mainstream hypervisors like QEMU a
 to implement both in order to run on platforms that don't support PVH Boot.
 
 Note: I didn't end up installing and configuring Xen on a baremetal x86 machine to test with, instead I opted to test with 
-[Cloud-Hypervisor](https://github.com/cloud-hypervisor/cloud-hypervisor) since it support PVH Boot instead of Direct Linux Boot and some of its primary contributors are former
-Xen contributors!
+[Cloud-Hypervisor](https://github.com/cloud-hypervisor/cloud-hypervisor) since it supports PVH Boot.
 
 ## Bootable Kernel Image
 
@@ -67,7 +66,7 @@ Having decided to develop for the Cloud-Hypervisor (CH) platform using the PVH B
 the PVH Boot specification the build needs to use something called "ElfNotes" to insert special entries in the `.note` section of the resulting binary. Here's a look at an ElfNote
 in the resulting kernel image:
 ```
-unifire/src/main.rs:30
+bootrs/src/main.rs:30
 
 Displaying notes found in: .note
   Owner                Data size 	Description
@@ -108,9 +107,9 @@ for phdr in phdrs {
 it is clear to see that CH will only care about the `PHYS32_ENTRY` ElfNote to make the kernel image bootable.
 
 Now to make the Rust build system produce a freestanding kernel image (but still relying on SYSTEM V ABI):
-+ Use the custom linker script and ensure the kernel image is NOT position independent (as it is not coded to be such) and targex a non-linux ABI:
++ Use the custom linker script and ensure the kernel image is NOT position independent (as it is not coded to be such) and target a non-linux ABI:
 ```
-unifire/.cargo/config.toml
+bootrs/.cargo/config.toml
 
 [build]
 target = "x86_64-unknown-none"
@@ -120,18 +119,18 @@ rustflags = [
     "-C", "relocation-model=static",
 ]
 ```
-+ Include Rust's (relatively new) inline assembly features to include the early boot assembly instructions which include our kernel entry point `_start`:
++ Include Rust's inline assembly features to include the early boot assembly instructions which include our kernel entry point `_start`:
 ```
-unifire/src/main.rs:20
+bootrs/src/main.rs:20
 
 global_asm!(include_str!("platform/pvh/boot.S"), options(att_syntax));
 ```
-Note that this requires AT&T syntax over Intel syntax (Intel didn't seem to play nicely for unknown reasons I didn't bother exploring) and restricts the assembly
+Note that this requires AT&T syntax over Intel syntax and restricts the assembly
 code to what the LLVM assembler will support instead of the perhaps more familiar GNU assembler.
 
 + Lastly, make sure that the Rust binary is not attempting to link the `std` library and doesn't expect a main function:
 ```
-unifire/src/main.rs:1-2
+bootrs/src/main.rs:1-2
 
 #![no_std]
 #![no_main]
@@ -151,9 +150,9 @@ CH log
 
 ## Early Boot Code (Kernel PVH Boot):
 Now that the kernel image has the entry point set at 1MiB (thanks to the custom linker script) and an ElfNote instructing the VMM to load the kernel at the entry point, the kernel
-needs to perform critical early boot operations before it can continue with regular initialization. The VMM (CH) will configure the system as follows for the unifire kernel:
+needs to perform critical early boot operations before it can continue with regular initialization. The VMM (CH) will configure the system as follows for the bootrs kernel:
 ```
-(documented in unifire/src/platform/pvh/boot.S)
+(documented in bootrs/src/platform/pvh/boot.S)
 
  Entry point for PVH guests.
 
@@ -178,10 +177,10 @@ needs to perform critical early boot operations before it can continue with regu
 ```
 The first goal for this kernel is jumping to 64-bit "long mode" and entering the Rust code. NOTE, *nearly* all early boot code could be performed in Rust
 instead of asm, this is an ideal end state, however, due to the delicate nature of these operations it has been easier for me to debug when performed in
-asm entirely as it is relatively easier to reason about. Additionally, there is no stack, the kernel won't be able to jump into a Rust function if there is
+asm entirely as it is *relatively* easier to reason about. Additionally, there is no stack, the kernel won't be able to jump into a Rust function if there is
 no stack! The general scheme of maneuver for getting the kernel from 32-bit protected mode to 64-bit long mode wil be:
 ```x86
-unifire/src/platform/pvh/boot.S
+bootrs/src/platform/pvh/boot.S
 
     .code32
     .section .text.start
@@ -199,25 +198,23 @@ _start:
     jmp long_mode_entry /* And enter Rust, not coming back! */
 ```
 
-The internal order of operations here may or may not matter, I did not get an empiric read on whether things breakdown if you setup page tables before
-the stack or not. However, these steps took inspiration from the Intel SDM, the Linux kernel (arch/x86/platform/pvh/head.S), and the OSDev Wiki. In this
-early boot stage I opt to identity map the entirety of physical memory such that all virtual addresses == physical addresses. In the relatively-near future
+These steps took inspiration from the Intel SDM, the Linux kernel (arch/x86/platform/pvh/head.S), and the OSDev Wiki. In this early boot stage I opt to identity map the entirety of physical memory such that all virtual addresses == physical addresses. In the relatively-near future
 this will change for two reasons:
 + I would like to incorporate something like a pre-built page table, since mapping the entire physical address space (even with huge pages) is time-
 consuming.
-+ Identity maps are not advantageous as they lead to fragmentation down the line which impedes operations like allocating large contiguous regions of memory.+ Lastly, I am not carefully using flags on the page table entries, for example, the stack should be read+write, while the `.text` segment should be
-red+execute.
++ Identity maps are not advantageous as they lead to fragmentation down the line which impedes operations like allocating large contiguous regions of memory.
++ Lastly, this method makes using flags on the page table entries difficult, for example, the stack should be read+write, while the `.text` segment should be read+execute.
 
 This brings us to the next bit of intracacy: all early boot stack and page table data is in the `.bss` section, eventually the kernel will zero `.bss` and
 remap the entire kernel address space, so storing any data that will be long-lived must be done carefully. After setting up the page tables, the system
-MUST have paging enabled before jumping to 64-bit mode. This is a relatelivy boring but extremely error prone manuever where the kernel sets the PAE bit 
+MUST have paging enabled before jumping to 64-bit mode. This is a relatelivy boring but extremely error prone manuever (for me at least) where the kernel sets the PAE bit 
 in `%cr4`, the paging bit in `%cr0` and lastly, writes the address of the top level page table in `%cr3`.
 
 The final requirement before jumping to long mode is configuring a Global Descriptor Table (GDT). Although memory segmentation will *not* be used in this
-`x86_64` kernel, the GDT must still be setup and loaded using the `lgdt` command. This entire operation caused me *extreme* headaches. Here is the GDT 
+`x86_64` kernel, the GDT must still be setup and loaded using the `lgdt` command. This entire operation caused me *extreme* headaches as this was my first experience configuring an x86_64 bare metal target. Here is the GDT 
 layout I landed on:
 ```
-unifire/src/platform/pvh/boot.S
+bootrs/src/platform/pvh/boot.S
 
     .section .rodata
     .balign 8
@@ -243,7 +240,7 @@ setup_gdt:
     mov %eax, %ss
     ret
 ```
-When the GDT structure is loaded, the system actually gets a pointer to the *actual* GDT using a few mildly clever asm tricks to create an 
+When the GDT structure is loaded, the system gets a pointer to the *actual* GDT using a few mildly clever asm tricks to create an 
 8-byte value which will point the system at the segment descriptors to use. This also took a few stabs in the dark to get right...and may require a few more.
 
 A few notes here: the lower 42 (ish?) bits are *mostly* irrelevant in long mode, but not entirely!! As I spent many painful debugging sessions verifying,
@@ -274,7 +271,7 @@ doesn't have as robust debugging facilities as a platform like QEMU, although th
 ## Rust Kernel Initialization
 The Rust kernel code begins in earnest once the system is in long mode where the following function is called:
 ```
-unifire/src/platform/pvh/setup.rs
+bootrs/src/platform/pvh/setup.rs
 
 #[no_mangle]
 pub extern "C" fn _rust_start(start_info_ptr: *const HvmStartInfo)
@@ -326,14 +323,14 @@ The first field the kernel reads after magic and version is the memory map, it u
 through the CH interface) and tells the kernel how much RAM there is and which regions of memory can be used for the kernel heap (and eventually address
 space reorganization).
 
-### Seemingly Insurmountable Kernel Error
-Over the course of days I debugged the `_rust_start` function due to an issue with pointer misalignment. After setting up page tables, enabling paging, 
+### Confusion!
+Over the course of a few days I debugged the `_rust_start` function due to an issue with pointer misalignment. After setting up page tables, enabling paging, 
 loading the GDT, and setting up the stack, the Rust code was suffering from debilitating alignment issues which made it impossible to operate the kernel.
 For example, the `_rust_start` function could adequately receive the `start_info_ptr` argument and GDB showed a valid start info struct in memory, however
 when any of the fields of the struct were read by later Rust code they would be off by one or more bytes. For instance, trying to to use the `memmap_paddr`
 field, which is set as `0x7000` by CH, a value like `let mp = start_info.memmap_paddr` would be `0x6fff`! After reviewing the early boot asm code I dove
 in deep on the Rust `ptr` core library module to understand if Rust was secretely sabotaging the kernel with hidden pointer metadata as part of its 
-provenance experiment or something. This days-long adventure yielded nothing. Finally, after reviewing the early boot code for the umpteenth time I 
+provenance experiment or something. Perhaps this was a subconscious psychological defense mechanism, how could *my* code be the issue? This days-long adventure yielded nothing except a chance to peer into the internals of the Rust standard library :). Finally, after reviewing the early boot code for the umpteenth time I 
 discovered what I believe to be the issue: the long jump to 64-bit mode was *not* setting the code segment register with the right selector. This 
 tweak seemed to fix it.
 
@@ -355,4 +352,3 @@ I plan to continue my efforts on this project as I am able to, focusing on the f
 Longer term goals:
 + Use a passed in initrd
 + Basic VIRTIO block / net drivers
-+ Device passthrough!
